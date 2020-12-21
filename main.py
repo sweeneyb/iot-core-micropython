@@ -44,11 +44,17 @@ def connect():
     print('network config: {}'.format(sta_if.ifconfig()))
 
 def set_time():
-    ntptime.settime()
-    tm = utime.localtime()
-    tm = tm[0:3] + (0,) + tm[3:6] + (0,)
-    machine.RTC().datetime(tm)
-    print('current time: {}'.format(utime.localtime()))
+    for i in range(3):
+        try: 
+            ntptime.settime()
+            tm = utime.localtime()
+            tm = tm[0:3] + (0,) + tm[3:6] + (0,)
+            machine.RTC().datetime(tm)
+            print('current time: {}'.format(utime.localtime()))
+            return
+        except OSError:
+            print("OS Error setting time.  Retrying shortly")
+            utime.sleep_ms(5000)
 
 def b42_urlsafe_encode(payload):
     return string.translate(b2a_base64(payload)[:-1].decode('utf-8'),{ ord('+'):'-', ord('/'):'_' })
