@@ -28,6 +28,7 @@ import ujson
 import config
 
 sta_if = network.WLAN(network.STA_IF)
+repl_button = machine.Pin(0, machine.Pin.IN, machine.Pin.PULL_UP)
 led_pin = machine.Pin(config.device_config['led_pin'], Pin.OUT) #built-in LED pin
 led_pin.value(1)
 
@@ -44,11 +45,18 @@ def connect():
     print('network config: {}'.format(sta_if.ifconfig()))
 
 def set_time():
-    ntptime.settime()
-    tm = utime.localtime()
-    tm = tm[0:3] + (0,) + tm[3:6] + (0,)
-    machine.RTC().datetime(tm)
-    print('current time: {}'.format(utime.localtime()))
+    for i in range(3):
+        try: 
+            ntptime.settime()
+            tm = utime.localtime()
+            tm = tm[0:3] + (0,) + tm[3:6] + (0,)
+            machine.RTC().datetime(tm)
+            print('current time: {}'.format(utime.localtime()))
+            return
+        except OSError:
+            print("OS Error setting time.  Retrying shortly")
+            utime.sleep_ms(5000)
+            
 
 def b42_urlsafe_encode(payload):
     return string.translate(b2a_base64(payload)[:-1].decode('utf-8'),{ ord('+'):'-', ord('/'):'_' })
@@ -95,6 +103,12 @@ jwt = create_jwt(config.google_cloud_config['project_id'], config.jwt_config['pr
 client = get_mqtt_client(config.google_cloud_config['project_id'], config.google_cloud_config['cloud_region'], config.google_cloud_config['registry_id'], config.google_cloud_config['device_id'], jwt)
 
 while True:
+    for i in range(100):
+        if repl_button.value() == 0:
+            print("Dropping to REPL")
+            led_pin.value(1)
+            sys.exit()
+        utime.sleep_ms(100)
     message = {
         "device_id": config.google_cloud_config['device_id'],
         "temp": esp32.raw_temperature()
