@@ -26,14 +26,23 @@ from machine import RTC, Pin
 import ntptime
 import ujson
 import config
+import sys
 
 sta_if = network.WLAN(network.STA_IF)
 repl_button = machine.Pin(0, machine.Pin.IN, machine.Pin.PULL_UP)
 led_pin = machine.Pin(config.device_config['led_pin'], Pin.OUT) #built-in LED pin
 led_pin.value(1)
+delay_time = 100
 
 def on_message(topic, message):
     print((topic,message))
+    try: 
+        data = ujson.loads(message)
+        global delay_time
+        delay_time = data['blink_delay']
+        print("set delay time to {}".format(delay_time))
+    except:
+        print("message could not be parsed")
 
 def connect():
     if not sta_if.isconnected():
@@ -103,12 +112,6 @@ jwt = create_jwt(config.google_cloud_config['project_id'], config.jwt_config['pr
 client = get_mqtt_client(config.google_cloud_config['project_id'], config.google_cloud_config['cloud_region'], config.google_cloud_config['registry_id'], config.google_cloud_config['device_id'], jwt)
 
 while True:
-    for i in range(100):
-        if repl_button.value() == 0:
-            print("Dropping to REPL")
-            led_pin.value(1)
-            sys.exit()
-        utime.sleep_ms(100)
     message = {
         "device_id": config.google_cloud_config['device_id'],
         "temp": esp32.raw_temperature()
@@ -119,5 +122,17 @@ while True:
     client.publish(mqtt_topic.encode('utf-8'), ujson.dumps(message).encode('utf-8'))
     led_pin.value(0)
 
-    client.check_msg() # Check for new messages on subscription
+    try:
+        client.check_msg() # Check for new messages on subscription
+    except OSError as err:
+        print("OS error: {0}".format(err))
+
     utime.sleep(10)  # Delay for 10 seconds.
+
+    for i in range(10):
+        if repl_button.value() == 0:
+            print("Dropping to REPL")
+            led_pin.value(1)
+            sys.exit()
+        print("delay: {}".format(delay_time))
+        utime.sleep_ms(delay_time)
